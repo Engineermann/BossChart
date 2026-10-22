@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SKILL CEILING / SKILL FLOOR</title>
+<style>
+    :root {
+        --bg: #ffffff;
+        --text: #000000;
+        --line-color: #333333;
+        --icon-size: 100px;
+        --tooltip-opacity: 1;
+    }
+
+    body.dark-mode {
+        --bg: #121212;
+        --text: #ffffff;
+        --line-color: #444444;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    body {
+        display: flex;
+        flex-direction: column;
+        padding: 15px;
+    }
+
+    .top-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        flex-shrink: 0;
+        margin-bottom: 5px;
+    }
+
+    .top-bar h1 {
+        font-size: 32px;
+        letter-spacing: 2px;
+        font-weight: 900;
+    }
+
+    .main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        min-height: 0;
+        width: 100%;
+        position: relative;
+    }
+
+    .bank {
+        width: 280px;
+        height: 100%;
+        border: 3px solid var(--line-color);
+        padding: 15px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        overflow-y: auto;
+        flex-shrink: 0;
+        align-content: flex-start;
+        border-radius: 8px;
+        background: var(--bg);
+    }
+
+    .chart-wrapper {
+        flex: 1;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding-left: 160px; 
+        padding-bottom: 60px;
+    }
+
+    .grid-square {
+        position: relative;
+        height: 95%;
+        aspect-ratio: 1 / 1;
+    }
+
+    .grid {
+        position: relative;
+        background: var(--bg);
+        border: 4px solid var(--line-color);
+        width: 100%;
+        height: 100%;
+        background-image: 
+            linear-gradient(to right, transparent calc(33.33% - 1px), var(--line-color) calc(33.33% - 1px), var(--line-color) 33.33%, transparent 33.33%),
+            linear-gradient(to right, transparent calc(66.66% - 1px), var(--line-color) calc(66.66% - 1px), var(--line-color) 66.66%, transparent 66.66%),
+            linear-gradient(to bottom, transparent calc(33.33% - 1px), var(--line-color) calc(33.33% - 1px), var(--line-color) 33.33%, transparent 33.33%),
+            linear-gradient(to bottom, transparent calc(66.66% - 1px), var(--line-color) calc(66.66% - 1px), var(--line-color) 66.66%, transparent 66.66%);
+        background-size: 100% 100%;
+    }
+
+    .y-axis {
+        position: absolute;
+        left: -45px;
+        top: 50%;
+        transform: translateY(-50%);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        font-size: 20px;
+        font-weight: 900;
+    }
+
+    .y-axis span {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        text-align: center;
+    }
+
+    .x-axis {
+        position: absolute;
+        bottom: -45px;
+        left: 0;
+        width: 100%;
+        display: flex;
+        justify-content: space-around;
+        font-size: 20px;
+        font-weight: 900;
+    }
+
+    .axis-title-y {
+        position: absolute;
+        left: -150px;
+        top: 50%;
+        transform: translateY(-50%) rotate(-90deg);
+        transform-origin: center;
+        font-size: 24px;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .axis-title-x {
+        position: absolute;
+        bottom: -85px;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 900;
+    }
+
+    .character {
+        position: absolute;
+        width: var(--icon-size);
+        height: var(--icon-size);
+        background: var(--bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+        touch-action: none;
+        z-index: 10;
+        border: 2px solid var(--line-color);
+        border-radius: 6px;
+        transform: translate(-50%, -50%);
+    }
+
+    .character img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        pointer-events: none;
+        padding: 2px;
+    }
+
+    .character.hidden {
+        opacity: 0.3;
+    }
+
+    .character.clone {
+        position: fixed !important;
+        z-index: 1000;
+        cursor: grabbing;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        pointer-events: none;
+        margin: 0;
+        transform: none;
+    }
+
+    .bank .character {
+        position: relative;
+        width: 100% !important;
+        height: auto;
+        aspect-ratio: 1 / 1;
+        margin: 0 auto;
+        transform: none;
+    }
+
+    .character-tooltip {
+        position: absolute;
+        bottom: -55px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--text);
+        color: var(--bg);
+        padding: 4px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        border-radius: 4px;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 50;
+        text-align: center;
+        line-height: 1.3;
+        opacity: var(--tooltip-opacity);
+        transition: opacity 0.2s;
+    }
+
+    .character:hover .character-tooltip {
+        opacity: 1 !important;
+    }
+
+    .settings-panel {
+        width: 240px;
+        height: 100%;
+        border: 3px solid var(--line-color);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        flex-shrink: 0;
+        border-radius: 8px;
+        background: var(--bg);
+    }
+
+    .setting-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .setting-group label {
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    input[type="range"] {
+        width: 100%;
+        accent-color: var(--text);
+    }
+
+    .btn {
+        background: var(--bg);
+        border: 3px solid var(--line-color);
+        color: var(--text);
+        padding: 10px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 16px;
+        border-radius: 6px;
+        transition: 0.2s;
+        text-align: center;
+    }
+
+    .btn:active {
+        background: var(--text);
+        color: var(--bg);
+    }
+
+    @media (max-width: 1100px) {
+        .main { flex-direction: column; gap: 15px; align-items: center; }
+        .bank { width: 100%; height: 100px; grid-template-columns: repeat(5, 1fr); padding: 8px; }
+        .settings-panel { width: 100%; height: auto; flex-direction: row; justify-content: space-between; align-items: center; padding: 10px; }
+        .chart-wrapper { padding-left: 100px; padding-bottom: 60px; width: 100%; }
+        .grid-square { height: auto; width: 80%; max-width: 600px; }
+        .y-axis { left: -30px; font-size: 14px; }
+        .x-axis { bottom: -30px; font-size: 14px; }
+        .axis-title-y { left: -90px; font-size: 16px; }
+        .axis-title-x { bottom: -60px; font-size: 16px; }
+    }
+</style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <h1>SKILL CHART</h1>
+    </div>
+
+    <div class="main">
+        <div class="bank" id="bank"></div>
+
+        <div class="chart-wrapper">
+            <div class="grid-square">
+                <div class="grid" id="grid"></div>
+                <div class="y-axis">
+                    <span>HIGH</span>
+                    <span>MID</span>
+                    <span>LOW</span>
+                </div>
+                <div class="x-axis">
+                    <span>LOW</span>
+                    <span>MID</span>
+                    <span>HIGH</span>
+                </div>
+                <div class="axis-title-y">SKILL FLOOR →</div>
+                <div class="axis-title-x">SKILL CEILING →</div>
+            </div>
+        </div>
+
+        <div class="settings-panel">
+            <div class="setting-group">
+                <label for="size-slider">Icon Size</label>
+                <input type="range" id="size-slider" min="40" max="200" value="100">
+            </div>
+
+            <div class="setting-group">
+                <label>Always Show Stats</label>
+                <div class="btn" id="stats-toggle">ON</div>
+            </div>
+            
+            <div class="setting-group">
+                <label>Dark Theme</label>
+                <div class="btn" id="theme-toggle">TOGGLE</div>
+            </div>
+
+            <div class="setting-group" style="margin-top: auto;">
+                <div class="btn" id="reset-btn">RESET ALL</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const charactersData = [
+    { id: 'p1',  name: 'Ares',    img: 'Ares.webp' },
+    { id: 'p2',  name: 'Sparta',  img: 'Sparta.webp' },
+    { id: 'p3',  name: 'Trident', img: 'Trident.webp' },
+    { id: 'p4',  name: 'Achi',    img: 'Achi.webp' },
+    { id: 'p5',  name: 'Prom',    img: 'Prom.webp' },
+    { id: 'p6',  name: 'Hermes',  img: 'Hermes.webp' },
+    { id: 'p7',  name: 'Gaia',    img: 'Gaia.webp' },
+    { id: 'p8',  name: 'FUsi',    img: 'FUsi.webp' },
+    { id: 'p9',  name: 'Tempest', img: 'Tempest.webp' },
+    { id: 'p10', name: 'Daeda',   img: 'Daeda.webp' }
+];
+
+const bank = document.getElementById('bank');
+const grid = document.getElementById('grid');
+const resetBtn = document.getElementById('reset-btn');
+const sizeSlider = document.getElementById('size-slider');
+const themeToggle = document.getElementById('theme-toggle');
+const statsToggle = document.getElementById('stats-toggle');
+
+const STORAGE_KEY = 'skill-chart-v25';
+const TOOLTIP_KEY = 'skill-chart-tooltip-state';
+
+let showStatsAlways = localStorage.getItem(TOOLTIP_KEY) !== 'false';
+
+function updateStatsToggleBtn() {
+    if (showStatsAlways) {
+        statsToggle.textContent = 'ON';
+        document.documentElement.style.setProperty('--tooltip-opacity', '1');
+    } else {
+        statsToggle.textContent = 'OFF';
+        document.documentElement.style.setProperty('--tooltip-opacity', '0');
+    }
+}
+
+updateStatsToggleBtn();
+
+statsToggle.addEventListener('click', () => {
+    showStatsAlways = !showStatsAlways;
+    localStorage.setItem(TOOLTIP_KEY, showStatsAlways);
+    updateStatsToggleBtn();
+});
+
+sizeSlider.addEventListener('input', (e) => {
+    document.documentElement.style.setProperty('--icon-size', e.target.value + 'px');
+    updateAllTooltips();
+    saveLayout();
+});
+
+themeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('skill-chart-theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+});
+
+if (localStorage.getItem('skill-chart-theme') === 'dark') {
+    document.body.classList.add('dark-mode');
+}
+
+function createCharacter(data, isOnBoard = false) {
+    const el = document.createElement('div');
+    el.classList.add('character');
+    el.dataset.id = data.id;
+    el.dataset.name = data.name;
+
+    const img = document.createElement('img');
+    img.src = data.img;
+    img.alt = data.name;
+    el.appendChild(img);
+
+    if (isOnBoard) {
+        const tooltip = document.createElement('div');
+        tooltip.classList.add('character-tooltip');
+        el.appendChild(tooltip);
+    }
+
+    el.addEventListener('mouseenter', () => {
+        if (el.parentElement === grid) {
+            el.style.zIndex = 100;
+        }
+    });
+    el.addEventListener('mouseleave', () => {
+        if (el.parentElement === grid) {
+            el.style.zIndex = 10;
+        }
+    });
+
+    attachDrag(el);
+    return el;
+}
+
+function updateAllTooltips() {
+    const gridRect = grid.getBoundingClientRect();
+    const chars = grid.querySelectorAll('.character');
+    
+    chars.forEach(char => {
+        const tooltip = char.querySelector('.character-tooltip');
+        if (!tooltip) return;
+
+        const left = parseFloat(char.style.left) || 0;
+        const top = parseFloat(char.style.top) || 0;
+
+        // Считаем процент по центру и жестко ограничиваем 0-100
+        let relX = left / gridRect.width;
+        let relY = top / gridRect.height;
+
+        relX = Math.max(0, Math.min(1, relX));
+        relY = Math.max(0, Math.min(1, relY));
+
+        const ceilingVal = Math.round(relX * 100);
+        const floorVal = Math.round(100 - relY * 100);
+
+        tooltip.innerHTML = `Floor: ${floorVal}%<br>Ceiling: ${ceilingVal}%`;
+    });
+}
+
+function attachDrag(el) {
+    let isDragging = false;
+    let clone = null;
+    let offsetX = 0;
+    let offsetY = 0;
+    let startX = 0;
+    let startY = 0;
+
+    function getPoint(e) {
+        if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        return { x: e.clientX, y: e.clientY };
+    }
+
+    function onDown(e) {
+        if (e.cancelable) e.preventDefault();
+        if (isDragging) return;
+
+        const p = getPoint(e);
+        const rect = el.getBoundingClientRect();
+
+        offsetX = p.x - rect.left;
+        offsetY = p.y - rect.top;
+        
+        // Запоминаем начальную точку клика, чтобы избежать микро-сдвигов
+        startX = p.x;
+        startY = p.y;
+        isDragging = false;
+
+        document.addEventListener('mousemove', onMove, { passive: false });
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+        document.addEventListener('touchcancel', onUp);
+    }
+
+    function onMove(e) {
+        if (e.cancelable) e.preventDefault();
+        const p = getPoint(e);
+
+        // Проверяем, сдвинули ли мышь больше чем на 5 пикселей
+        if (!isDragging) {
+            const dx = p.x - startX;
+            const dy = p.y - startY;
+            
+            if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+                return; // Игнорируем легкое дрожание
+            }
+
+            // Начинаем перетаскивание
+            isDragging = true;
+            el.classList.add('hidden');
+            el.style.zIndex = '';
+
+            clone = el.cloneNode(true);
+            clone.classList.remove('hidden');
+            clone.classList.add('clone');
+            
+            const tip = clone.querySelector('.character-tooltip');
+            if (tip) tip.remove();
+
+            const currentRect = el.getBoundingClientRect();
+            clone.style.width = currentRect.width + 'px';
+            clone.style.height = currentRect.height + 'px';
+            clone.style.left = currentRect.left + 'px';
+            clone.style.top = currentRect.top + 'px';
+
+            document.body.appendChild(clone);
+        }
+
+        if (isDragging) {
+            clone.style.left = (p.x - offsetX) + 'px';
+            clone.style.top = (p.y - offsetY) + 'px';
+        }
+    }
+
+    function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+        document.removeEventListener('touchcancel', onUp);
+
+        if (!isDragging) return;
+        isDragging = false;
+
+        const cloneRect = clone.getBoundingClientRect();
+        const centerX = cloneRect.left + cloneRect.width / 2;
+        const centerY = cloneRect.top + cloneRect.height / 2;
+
+        const bankRect = bank.getBoundingClientRect();
+        const settingsRect = document.querySelector('.settings-panel').getBoundingClientRect();
+        const gridRect = grid.getBoundingClientRect();
+        
+        const insideBank = centerX >= bankRect.left && centerX <= bankRect.right && centerY >= bankRect.top && centerY <= bankRect.bottom;
+        const insideSettings = centerX >= settingsRect.left && centerX <= settingsRect.right && centerY >= settingsRect.top && centerY <= settingsRect.bottom;
+
+        el.classList.remove('hidden');
+        clone.remove();
+
+        if (insideBank || insideSettings) {
+            bank.appendChild(el);
+            el.style.position = 'relative';
+            el.style.left = '';
+            el.style.top = '';
+            const tooltip = el.querySelector('.character-tooltip');
+            if (tooltip) tooltip.remove();
+        } 
+        else {
+            grid.appendChild(el);
+            el.style.position = 'absolute';
+            
+            let localX = centerX - gridRect.left;
+            let localY = centerY - gridRect.top;
+
+            el.style.left = localX + 'px';
+            el.style.top = localY + 'px';
+
+            if (!el.querySelector('.character-tooltip')) {
+                const tooltip = document.createElement('div');
+                tooltip.classList.add('character-tooltip');
+                el.appendChild(tooltip);
+            }
+        }
+
+        saveLayout();
+        updateAllTooltips();
+    }
+
+    el.addEventListener('mousedown', onDown);
+    el.addEventListener('touchstart', onDown, { passive: false });
+}
+
+function saveLayout() {
+    const data = {
+        grid: [],
+        bank: [],
+        size: sizeSlider.value
+    };
+
+    grid.querySelectorAll('.character').forEach(c => {
+        data.grid.push({
+            id: c.dataset.id,
+            left: c.style.left,
+            top: c.style.top
+        });
+    });
+
+    bank.querySelectorAll('.character').forEach(c => {
+        data.bank.push(c.dataset.id);
+    });
+
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+function loadLayout() {
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch(e) {}
+    if (!saved) return false;
+
+    if (saved.size) {
+        sizeSlider.value = saved.size;
+        document.documentElement.style.setProperty('--icon-size', saved.size + 'px');
+    }
+
+    const allChars = {};
+    charactersData.forEach(d => allChars[d.id] = d);
+
+    if (saved.bank) {
+        saved.bank.forEach(id => {
+            if (!allChars[id]) return;
+            const el = createCharacter(allChars[id], false);
+            el.style.position = 'relative';
+            bank.appendChild(el);
+        });
+    }
+
+    if (saved.grid) {
+        saved.grid.forEach(item => {
+            if (!allChars[item.id]) return;
+            const el = createCharacter(allChars[item.id], true);
+            el.style.position = 'absolute';
+            el.style.left = item.left;
+            el.style.top = item.top;
+            grid.appendChild(el);
+        });
+    }
+    
+    setTimeout(updateAllTooltips, 100);
+    return true;
+}
+
+function populateBank() {
+    charactersData.forEach(data => {
+        const el = createCharacter(data, false);
+        el.style.position = 'relative';
+        bank.appendChild(el);
+    });
+}
+
+resetBtn.addEventListener('click', () => {
+    if (!confirm('Reset everything?')) return;
+    bank.innerHTML = '';
+    grid.innerHTML = '';
+    try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+    populateBank();
+});
+
+if (!loadLayout()) populateBank();
+window.addEventListener('resize', updateAllTooltips);
+</script>
+</body>
+</html>
